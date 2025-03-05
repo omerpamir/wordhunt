@@ -305,49 +305,108 @@
         let lowerBoundWord = "A";
         let upperBoundWord = "Z";
 
-        // Turkish alphabet for positioning calculations
-        const turkishAlphabet = 'AaBbCcÇçDdEeFfGgĞğHhIıİiJjKkLlMmNnOoÖöPpQqRrSsŞşTtUuÜüVvWwXxYyZz';
+        // Turkish alphabet - full character set with both cases
+        const turkishAlphabet = 'AaBbCcÇçDdEeFfGgĞğHhIıİiJjKkLlMmNnOoÖöPpRrSsŞşTtUuÜüVvYyZz';
         
         // Calculate a word's position in the alphabet (0 to 1 scale)
         function getWordPosition(word) {
             if (!word || word.length === 0) return 0;
             
-            // Use the first character for primary positioning
+            // Using a base-26 like system (simplified for Turkish alphabet)
+            // This ensures proper ordering even with words that start the same
+            let position = 0;
+            const maxWeight = 0.999; // Maximum possible contribution to prevent exceeding 1.0
+            
+            // Start with just the uppercase version of the first character
             const firstChar = word.charAt(0).toUpperCase();
-            const firstCharIndex = turkishAlphabet.indexOf(firstChar);
+            const firstIndex = getCharacterIndex(firstChar);
             
-            // If character not found in Turkish alphabet, use a default position
-            if (firstCharIndex === -1) return 0.5;
-            
-            // Calculate primary position based on first character
-            const primaryPosition = firstCharIndex / turkishAlphabet.length;
-            
-            // Add fine-tuning based on second character if available
-            if (word.length > 1) {
-                const secondChar = word.charAt(1).toLowerCase();
-                const secondCharIndex = turkishAlphabet.indexOf(secondChar);
-                
-                if (secondCharIndex !== -1) {
-                    // Fine tune with second character (contributes 1/10 of the positioning)
-                    return primaryPosition + (secondCharIndex / turkishAlphabet.length) / 10;
-                }
+            // Base position from first character (0 to maxWeight range)
+            if (firstIndex !== -1) {
+                position = (firstIndex / 29) * maxWeight; // 29 letters in Turkish alphabet
+            } else {
+                position = 0.5; // Default for unknown characters
             }
             
-            return primaryPosition;
+            // Add refinements from next 4 characters if available
+            const remainingChars = Math.min(word.length - 1, 4);
+            if (remainingChars > 0) {
+                let refinement = 0;
+                
+                // Each position adds a fraction of the remaining distance
+                for (let i = 1; i <= remainingChars; i++) {
+                    const charIndex = getCharacterIndex(word.charAt(i));
+                    if (charIndex !== -1) {
+                        // Each character contributes a fraction based on its position
+                        refinement += (charIndex / 29) / Math.pow(30, i);
+                    }
+                }
+                
+                // Adjust the position within its segment
+                position += (maxWeight / 29) * refinement;
+            }
+            
+            // Ensure position stays in valid range
+            return Math.min(Math.max(position, 0), 0.999);
+        }
+        
+        // Helper function to get normalized index for a character
+        function getCharacterIndex(char) {
+            // Simplified Turkish alphabet order (uppercase only for consistency)
+            const turkishOrder = "ABCÇDEFGĞHIİJKLMNOÖPRSŞTUÜVYZ";
+            
+            // Convert to uppercase for consistency
+            const upperChar = char.toUpperCase();
+            
+            // Return the index or -1 if not found
+            return turkishOrder.indexOf(upperChar);
         }
 
-        // Update the visual range indicator
+        // Update the visual range indicator with better visibility for small ranges
         function updateVisualRange() {
-            // Convert positions to percentages
+            // Get the percentage of the full range
             const leftPercent = minPosition * 100;
             const widthPercent = (maxPosition - minPosition) * 100;
             
-            // Make sure values are valid
-            const safeLeftPercent = Math.max(0, Math.min(100, leftPercent));
-            const safeWidthPercent = Math.max(0, Math.min(100 - safeLeftPercent, widthPercent));
+            // Ensure the indicator is always visible (at least 2% wide)
+            const minWidthPercent = 2;
+            const visibleWidthPercent = Math.max(widthPercent, minWidthPercent);
             
-            rangeIndicator.style.left = safeLeftPercent + '%';
-            rangeIndicator.style.width = safeWidthPercent + '%';
+            // If we're using the minimum width, center it on the actual range
+            let adjustedLeftPercent = leftPercent;
+            if (widthPercent < minWidthPercent) {
+                // Center the minimum width bar over the actual range midpoint
+                const rangeMidpoint = (minPosition + maxPosition) / 2;
+                adjustedLeftPercent = (rangeMidpoint * 100) - (minWidthPercent / 2);
+                
+                // Make sure it doesn't go outside the bounds
+                adjustedLeftPercent = Math.max(0, Math.min(100 - minWidthPercent, adjustedLeftPercent));
+            }
+            
+            // Apply the calculated position and width
+            rangeIndicator.style.left = adjustedLeftPercent + '%';
+            rangeIndicator.style.width = visibleWidthPercent + '%';
+            
+            // Add a data attribute to indicate if we're showing minimum width
+            rangeIndicator.setAttribute('data-min-width', widthPercent < minWidthPercent ? 'true' : 'false');
+            
+            // Visual feedback about the range size
+            if (widthPercent < 0.1) {
+                // Range is extremely narrow - getting very close!
+                rangeIndicator.style.backgroundColor = '#e74c3c'; // Bright red
+            } else if (widthPercent < 1) {
+                // Range is narrow - getting close
+                rangeIndicator.style.backgroundColor = '#f39c12'; // Orange
+            } else if (widthPercent < 10) {
+                // Range is moderate - making progress
+                rangeIndicator.style.backgroundColor = '#3498db'; // Default blue
+            } else {
+                // Range is wide - just starting
+                rangeIndicator.style.backgroundColor = '#3498db'; // Default blue
+            }
+            
+            // Log current range information for debugging
+            console.log(`Range updated - Min: ${minPosition.toFixed(6)}, Max: ${maxPosition.toFixed(6)}, Width: ${widthPercent.toFixed(2)}%`);
         }
 
         // Process the player's guess
@@ -383,37 +442,63 @@
             const guessPosition = getWordPosition(guess);
             const targetPosition = getWordPosition(targetWord);
             
-            // Add to previous guesses
+            // Add to previous guesses with position
             previousGuesses.push({
                 word: guess,
                 position: guessPosition
             });
             
+            // For debugging - log the position with more precision and details
+            console.log(`Guess: "${guess}", Position: ${guessPosition.toFixed(6)}, Target: "${targetWord}", Target Position: ${targetPosition.toFixed(6)}, Lower: ${minPosition.toFixed(6)}, Upper: ${maxPosition.toFixed(6)}`);
+            
             // Update boundaries only if they narrow the search space
             if (guessPosition < targetPosition) {
                 // The guess comes before the target word alphabetically
-                if (guessPosition > minPosition) {
+                // Update if this guess is higher than the current minimum OR
+                // if it's equal but the word is longer (better constraint)
+                if (guessPosition > minPosition || 
+                   (Math.abs(guessPosition - minPosition) < 0.0001 && 
+                    guess.length > lowerBoundWord.length)) {
                     minPosition = guessPosition;
                     lowerBoundWord = guess;
                 }
             } else {
                 // The guess comes after the target word alphabetically
-                if (guessPosition < maxPosition) {
+                // Update if this guess is lower than the current maximum OR
+                // if it's equal but the word is shorter (better constraint)
+                if (guessPosition < maxPosition || 
+                   (Math.abs(guessPosition - maxPosition) < 0.0001 && 
+                    guess.length < upperBoundWord.length)) {
                     maxPosition = guessPosition;
                     upperBoundWord = guess;
                 }
             }
             
-            // Find closest lower and upper bounds
+            // Find closest lower and upper bounds with more precision
             let closestLower = { word: "A", position: 0 };
             let closestUpper = { word: "Z", position: 1 };
             
             for (const prevGuess of previousGuesses) {
-                if (prevGuess.position < targetPosition && prevGuess.position > closestLower.position) {
-                    closestLower = prevGuess;
+                // For lower bound (words that come before the target)
+                if (prevGuess.position < targetPosition) {
+                    // Update if this guess is higher than current closest OR
+                    // if equal but the word is longer (better constraint)
+                    if (prevGuess.position > closestLower.position || 
+                       (Math.abs(prevGuess.position - closestLower.position) < 0.0001 && 
+                        prevGuess.word.length > closestLower.word.length)) {
+                        closestLower = prevGuess;
+                    }
                 }
-                if (prevGuess.position > targetPosition && prevGuess.position < closestUpper.position) {
-                    closestUpper = prevGuess;
+                
+                // For upper bound (words that come after the target)
+                if (prevGuess.position > targetPosition) {
+                    // Update if this guess is lower than current closest OR
+                    // if equal but the word is shorter (better constraint)
+                    if (prevGuess.position < closestUpper.position ||
+                       (Math.abs(prevGuess.position - closestUpper.position) < 0.0001 && 
+                        prevGuess.word.length < closestUpper.word.length)) {
+                        closestUpper = prevGuess;
+                    }
                 }
             }
             
