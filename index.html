@@ -1,6 +1,566 @@
 <!DOCTYPE html>
 <html lang="tr">
 <head>
-  
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Word Hunt: Turkish Dictionary Guessing Game</title>
+    <style>
+        :root {
+            --primary-color: #e74c3c;
+            --secondary-color: #3498db;
+            --background-color: #f5f5f5;
+            --text-color: #333;
+            --card-color: #fff;
+            --feedback-color: #2c3e50;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+
+        body {
+            background-color: var(--background-color);
+            color: var(--text-color);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            background-color: var(--card-color);
+            border-radius: 10px;
+            box-shadow: 0 10px 20px rgba(0, 0, 0, 0.1);
+            width: 100%;
+            max-width: 500px;
+            padding: 30px;
+            text-align: center;
+        }
+
+        h1 {
+            color: var(--primary-color);
+            margin-bottom: 10px;
+            font-size: 2rem;
+        }
+
+        .subtitle {
+            color: var(--text-color);
+            margin-bottom: 25px;
+            font-weight: normal;
+            font-size: 1rem;
+        }
+
+        .input-container {
+            margin-bottom: 20px;
+            display: flex;
+            justify-content: center;
+        }
+
+        input[type="text"] {
+            padding: 12px 15px;
+            width: 70%;
+            border: 2px solid #ddd;
+            border-radius: 5px;
+            font-size: 1rem;
+            outline: none;
+            transition: border-color 0.3s;
+        }
+
+        input[type="text"]:focus {
+            border-color: var(--secondary-color);
+        }
+
+        button {
+            background-color: var(--secondary-color);
+            color: white;
+            border: none;
+            padding: 12px 20px;
+            margin-left: 10px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 1rem;
+            transition: background-color 0.3s;
+        }
+
+        button:hover {
+            background-color: #2980b9;
+        }
+
+        #newGameBtn {
+            background-color: var(--primary-color);
+            display: block;
+            width: 100%;
+            margin-top: 20px;
+        }
+
+        #newGameBtn:hover {
+            background-color: #c0392b;
+        }
+
+        .feedback {
+            background-color: var(--feedback-color);
+            color: white;
+            padding: 15px;
+            border-radius: 5px;
+            margin: 20px 0;
+            min-height: 100px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+        }
+
+        .guess-counter {
+            font-size: 0.9rem;
+            color: #777;
+            margin-top: 10px;
+        }
+
+        .visual-range {
+            height: 30px;
+            background-color: #eee;
+            border-radius: 5px;
+            margin: 20px 0;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .range-indicator {
+            position: absolute;
+            background-color: var(--secondary-color);
+            height: 100%;
+            transition: all 0.5s ease;
+        }
+
+        .dictionary-bounds {
+            display: flex;
+            justify-content: space-between;
+            font-size: 0.8rem;
+            color: #777;
+        }
+
+        .hint-letter {
+            font-weight: bold;
+            color: var(--primary-color);
+        }
+
+        .indicator {
+            margin-top: 5px;
+            font-size: 0.9rem;
+        }
+
+        .current-guess {
+            font-weight: bold;
+            color: var(--secondary-color);
+        }
+
+        /* For the custom toast notification */
+        .toast {
+            visibility: hidden;
+            min-width: 250px;
+            margin-left: -125px;
+            background-color: #4CAF50;
+            color: #fff;
+            text-align: center;
+            border-radius: 5px;
+            padding: 16px;
+            position: fixed;
+            z-index: 1;
+            left: 50%;
+            bottom: 30px;
+            font-size: 1rem;
+        }
+
+        .toast.show {
+            visibility: visible;
+            animation: fadein 0.5s, fadeout 0.5s 2.5s;
+        }
+
+        @keyframes fadein {
+            from {bottom: 0; opacity: 0;}
+            to {bottom: 30px; opacity: 1;}
+        }
+
+        @keyframes fadeout {
+            from {bottom: 30px; opacity: 1;}
+            to {bottom: 0; opacity: 0;}
+        }
+        
+        #hintBtn {
+            margin-top: 10px; 
+            background-color: #95a5a6;
+            width: 100%;
+        }
+        
+        #hintBtn:hover {
+            background-color: #7f8c8d;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Word Hunt</h1>
+        <p class="subtitle">Turkish Dictionary Guessing Game</p>
+        
+        <div class="input-container">
+            <input type="text" id="guessInput" placeholder="Enter a Turkish word" autocomplete="off">
+            <button id="guessBtn">Guess</button>
+        </div>
+        
+        <div class="feedback" id="feedback">
+            <p>I've selected a random Turkish word. Try to guess it!</p>
+            <p class="indicator">The word is somewhere in the Turkish dictionary.</p>
+        </div>
+
+        <div class="dictionary-bounds">
+            <span>A</span>
+            <span>Z</span>
+        </div>
+        <div class="visual-range">
+            <div class="range-indicator" id="rangeIndicator" style="left: 0; width: 100%;"></div>
+        </div>
+
+        <p class="guess-counter">Guesses: <span id="guessCount">0</span></p>
+        
+        <button id="newGameBtn">New Game</button>
+        <button id="hintBtn">Get a Hint</button>
+    </div>
+
+    <div id="toast" class="toast">Congratulations! You found the word!</div>
+
+    <script>
+        // Turkish dictionary - sample list (would be replaced with a larger JSON file in production)
+        const turkishDictionary = [
+            "abide", "acele", "açık", "adım", "affetmek", "ağaç", "ahşap", "aidat", "akıl", "alabalık",
+            "altın", "ambar", "anı", "apartman", "araba", "armut", "asker", "aşçı", "ateş", "avukat",
+            "ay", "ayna", "baba", "bacak", "bağ", "bahçe", "bakkal", "balık", "bardak", "baş",
+            "battaniye", "bayrak", "bebek", "beğeni", "beklemek", "belge", "beraber", "beş", "beyaz", "bilgisayar",
+            "bilet", "binmek", "bir", "bitmek", "boş", "boyun", "bölüm", "buğday", "bulmak", "bulut",
+            "burada", "büyük", "cadde", "cam", "canlı", "ceket", "cesaret", "cevap", "ceza", "cumartesi",
+            "çaba", "çadır", "çağırmak", "çalışmak", "çanta", "çarşamba", "çay", "çekmek", "çıkmak", "çiçek",
+            "çocuk", "çorap", "dağ", "daire", "dans", "dar", "davranış", "dayı", "dede", "değişmek",
+            "demir", "deniz", "ders", "dev", "dikmek", "dinlemek", "diş", "diz", "doğa", "doktor",
+            "dolap", "dondurma", "dost", "dökmek", "dönmek", "dudak", "durak", "duvar", "duymak", "düğme",
+            "dünya", "düşünmek", "eğitim", "ekmek", "el", "elbise", "elektrik", "elma", "emekli", "en",
+            "erkek", "eski", "et", "ev", "evet", "fakat", "fare", "fayda", "fırça", "fırın",
+            "fikir", "fil", "fiyat", "fosil", "futbol", "galiba", "garip", "gazete", "geç", "gece",
+            "geçmek", "gelin", "gelmek", "gemi", "genç", "geniş", "gerçek", "geri", "getirmek", "geyik",
+            "gezi", "girmek", "gitmek", "giyinmek", "göl", "gömlek", "görmek", "göz", "gözlük", "gri",
+            "güç", "gül", "gülmek", "gün", "güneş", "güzel", "haber", "hafif", "hafta", "hak",
+            "hala", "halı", "harika", "hasta", "havuç", "hayat", "hayır", "hayvan", "hazır", "hediye",
+            "hem", "hemen", "henüz", "her", "hesap", "hızlı", "hiç", "hoş", "hüzün", "ısırmak",
+            "ışık", "ihtiyaç", "iki", "ile", "ileri", "ilginç", "ilk", "imza", "inmek", "insan",
+            "internet", "ip", "iri", "isim", "istemek", "iş", "işte", "iyi", "izlemek", "jelatin",
+            "jest", "kabil", "kabuk", "kadar", "kahve", "kalem", "kalite", "kalmak", "kanat", "kapalı",
+            "kapı", "kar", "karar", "kardeş", "karşı", "kaşık", "kat", "kavun", "kayık", "kaymak",
+            "kazan", "kedi", "kelebek", "kelime", "kemik", "kent", "kesin", "kırmak", "kırmızı", "kış",
+            "kız", "kişi", "kitap", "koca", "kolay", "koltuk", "komik", "konuşmak", "kopya", "korku",
+            "koro", "koşmak", "koy", "köfte", "köpek", "köprü", "köy", "kral", "kulak", "kum",
+            "kuş", "kutu", "kuyruk", "kuzey", "küçük", "lamba", "lastik", "lezzet", "limon", "liste",
+            "lokanta", "maç", "mağaza", "makarna", "manzara", "market", "masa", "mavi", "mektep", "merak",
+            "merdiven", "merkez", "meyve", "mısır", "minik", "moda", "mor", "mutfak", "mutlu", "müzik",
+            "nadir", "nasıl", "neden", "nefes", "nehir", "nerede", "nesne", "niçin", "nine", "nisan",
+            "nokta", "normal", "not", "numara", "ocak", "ofis", "okul", "olmak", "omuz", "on",
+            "orman", "orta", "otobüs", "oturmak", "oynamak", "ödemek", "öğle", "öğrenci", "öğretmen", "ölçmek",
+            "ön", "önce", "önemli", "öpmek", "örnek", "özür", "pahalı", "paket", "palto", "para",
+            "parça", "park", "parlak", "parmak", "pasta", "patates", "pembe", "perde", "peynir", "piknik",
+            "pilav", "piyano", "plan", "plastik", "portakal", "problem", "program", "radyo", "rağmen", "rahat",
+            "rakam", "renk", "resim", "rüzgar", "saat", "sabah", "sabun", "sadece", "sahil", "salata",
+            "salon", "sana", "sandalye", "sanmak", "sarı", "satmak", "sayfa", "sebze", "seçmek", "sekiz",
+            "selam", "sen", "sepet", "ses", "sevgi", "sevmek", "seyahat", "sıcak", "sık", "sınav",
+            "sınıf", "sırt", "sigara", "silgi", "silmek", "simit", "sivri", "siyah", "sofra", "soğuk",
+            "sokak", "sol", "sonbahar", "sonra", "sormak", "söylemek", "söz", "spor", "su", "sürücü",
+            "süt", "şaka", "şapka", "şarap", "şarkı", "şehir", "şeker", "şemsiye", "şey", "şiir",
+            "şimdi", "şişe", "tabak", "tablo", "tahta", "taksi", "tamam", "tane", "tanımak", "taraf",
+            "tarif", "tarih", "tatil", "tatlı", "tavuk", "taze", "tehlike", "tek", "telefon", "televizyon",
+            "temiz", "tepe", "terzi", "teşekkür", "tiyatro", "top", "toprak", "turuncu", "tuş", "tüm",
+            "türkçe", "tüy", "ucuz", "uçak", "uçmak", "ufak", "uğraşmak", "uzak", "uzun", "ücret",
+            "üniversite", "üst", "üzgün", "üzüm", "vakit", "varmak", "vatan", "ve", "vermek", "vücut",
+            "yağ", "yağmur", "yalnız", "yapmak", "yaramaz", "yardım", "yarım", "yarın", "yaş", "yatak",
+            "yavaş", "yaz", "yazmak", "yedi", "yeğen", "yemek", "yeni", "yer", "yeşil", "yeterli",
+            "yıkamak", "yıl", "yıldız", "yirmi", "yoğurt", "yol", "yorgun", "yön", "yumurta", "yüksek",
+            "yürümek", "yüz", "yüzmek", "zarf", "zaten", "zayıf", "zehir", "zeytin", "zil", "zor"
+        ];
+
+        // DOM elements
+        const guessInput = document.getElementById('guessInput');
+        const guessBtn = document.getElementById('guessBtn');
+        const feedback = document.getElementById('feedback');
+        const guessCountDisplay = document.getElementById('guessCount');
+        const newGameBtn = document.getElementById('newGameBtn');
+        const hintBtn = document.getElementById('hintBtn');
+        const rangeIndicator = document.getElementById('rangeIndicator');
+        const toast = document.getElementById('toast');
+        
+        // Game state variables
+        let targetWord = "";
+        let guessCount = 0;
+        let minPosition = 0;
+        let maxPosition = 1;
+        let revealedLetters = [];
+        let previousGuesses = [];
+        let lowerBoundWord = "A";
+        let upperBoundWord = "Z";
+
+        // Turkish alphabet for positioning calculations
+        const turkishAlphabet = 'AaBbCcÇçDdEeFfGgĞğHhIıİiJjKkLlMmNnOoÖöPpQqRrSsŞşTtUuÜüVvWwXxYyZz';
+        
+        // Calculate a word's position in the alphabet (0 to 1 scale)
+        function getWordPosition(word) {
+            if (!word || word.length === 0) return 0;
+            
+            // Use the first character for primary positioning
+            const firstChar = word.charAt(0).toUpperCase();
+            const firstCharIndex = turkishAlphabet.indexOf(firstChar);
+            
+            // If character not found in Turkish alphabet, use a default position
+            if (firstCharIndex === -1) return 0.5;
+            
+            // Calculate primary position based on first character
+            const primaryPosition = firstCharIndex / turkishAlphabet.length;
+            
+            // Add fine-tuning based on second character if available
+            if (word.length > 1) {
+                const secondChar = word.charAt(1).toLowerCase();
+                const secondCharIndex = turkishAlphabet.indexOf(secondChar);
+                
+                if (secondCharIndex !== -1) {
+                    // Fine tune with second character (contributes 1/10 of the positioning)
+                    return primaryPosition + (secondCharIndex / turkishAlphabet.length) / 10;
+                }
+            }
+            
+            return primaryPosition;
+        }
+
+        // Update the visual range indicator
+        function updateVisualRange() {
+            // Convert positions to percentages
+            const leftPercent = minPosition * 100;
+            const widthPercent = (maxPosition - minPosition) * 100;
+            
+            // Make sure values are valid
+            const safeLeftPercent = Math.max(0, Math.min(100, leftPercent));
+            const safeWidthPercent = Math.max(0, Math.min(100 - safeLeftPercent, widthPercent));
+            
+            rangeIndicator.style.left = safeLeftPercent + '%';
+            rangeIndicator.style.width = safeWidthPercent + '%';
+        }
+
+        // Process the player's guess
+        function processGuess() {
+            const guess = guessInput.value.trim().toLowerCase();
+            
+            // Validate the guess
+            if (!guess) {
+                showToast('Please enter a word', 'warning');
+                return;
+            }
+            
+            // Check if the guess is the target
+            if (guess === targetWord) {
+                guessCount++;
+                guessCountDisplay.textContent = guessCount;
+                
+                feedback.innerHTML = `<p>Congratulations! You found the word "<span class="current-guess">${targetWord}</span>" in ${guessCount} guesses!</p>`;
+                showToast('Congratulations! You found the word!', 'success');
+                
+                // Disable input until new game
+                guessInput.disabled = true;
+                guessBtn.disabled = true;
+                hintBtn.disabled = true;
+                return;
+            }
+            
+            // If not correct, update the bounds
+            guessCount++;
+            guessCountDisplay.textContent = guessCount;
+            
+            // Calculate positions
+            const guessPosition = getWordPosition(guess);
+            const targetPosition = getWordPosition(targetWord);
+            
+            // Add to previous guesses
+            previousGuesses.push({
+                word: guess,
+                position: guessPosition
+            });
+            
+            // Update boundaries only if they narrow the search space
+            if (guessPosition < targetPosition) {
+                // The guess comes before the target word alphabetically
+                if (guessPosition > minPosition) {
+                    minPosition = guessPosition;
+                    lowerBoundWord = guess;
+                }
+            } else {
+                // The guess comes after the target word alphabetically
+                if (guessPosition < maxPosition) {
+                    maxPosition = guessPosition;
+                    upperBoundWord = guess;
+                }
+            }
+            
+            // Find closest lower and upper bounds
+            let closestLower = { word: "A", position: 0 };
+            let closestUpper = { word: "Z", position: 1 };
+            
+            for (const prevGuess of previousGuesses) {
+                if (prevGuess.position < targetPosition && prevGuess.position > closestLower.position) {
+                    closestLower = prevGuess;
+                }
+                if (prevGuess.position > targetPosition && prevGuess.position < closestUpper.position) {
+                    closestUpper = prevGuess;
+                }
+            }
+            
+            // Update feedback message
+            feedback.innerHTML = `<p>The target word is between "<span class="current-guess">${closestLower.word}</span>" and "<span class="current-guess">${closestUpper.word}</span>".</p>` +
+                                 '<p class="indicator">Try a word that comes in between these two.</p>';
+            
+            // Check if the player should get a free hint
+            if (guessCount % 5 === 0) {
+                giveHint(true);
+            }
+            
+            // Update the visual range
+            updateVisualRange();
+            
+            // Clear input for next guess
+            guessInput.value = '';
+            guessInput.focus();
+        }
+
+        // Game initialization
+        function initGame() {
+            // Reset game state
+            guessCount = 0;
+            guessCountDisplay.textContent = guessCount;
+            minPosition = 0;
+            maxPosition = 1;
+            revealedLetters = [];
+            previousGuesses = [];
+            lowerBoundWord = "A";
+            upperBoundWord = "Z";
+
+            // Choose a random word from the dictionary
+            const randomIndex = Math.floor(Math.random() * turkishDictionary.length);
+            targetWord = turkishDictionary[randomIndex];
+            
+            // Reset the UI
+            guessInput.value = '';
+            feedback.innerHTML = '<p>I\'ve selected a random Turkish word. Try to guess it!</p>' +
+                                '<p class="indicator">The word is somewhere in the Turkish dictionary.</p>';
+            
+            // Reset the visual range
+            updateVisualRange();
+        }
+
+        // Give a hint to the player
+        function giveHint(automatic = false) {
+            // If we've already revealed all letters, don't do anything
+            if (revealedLetters.length >= targetWord.length) {
+                showToast('All letters have been revealed already!', 'warning');
+                return;
+            }
+            
+            // Choose a random position that hasn't been revealed yet
+            let availablePositions = [];
+            for (let i = 0; i < targetWord.length; i++) {
+                if (!revealedLetters.includes(i)) {
+                    availablePositions.push(i);
+                }
+            }
+            
+            const randomPos = availablePositions[Math.floor(Math.random() * availablePositions.length)];
+            revealedLetters.push(randomPos);
+            
+            // Construct the hint message
+            let hintWord = '';
+            for (let i = 0; i < targetWord.length; i++) {
+                if (revealedLetters.includes(i)) {
+                    hintWord += `<span class="hint-letter">${targetWord[i]}</span>`;
+                } else {
+                    hintWord += '_ ';
+                }
+            }
+            
+            // Add the hint to the feedback
+            const hintMessage = document.createElement('p');
+            hintMessage.innerHTML = `Hint: The word looks like: ${hintWord}`;
+            
+            if (automatic) {
+                feedback.appendChild(document.createElement('br'));
+                feedback.appendChild(hintMessage);
+                showToast('You received a free hint after 5 guesses!', 'info');
+            } else {
+                // If manually requested, replace any existing hint or add a new one
+                const existingHint = feedback.querySelector('p:last-child');
+                if (existingHint && existingHint.textContent.startsWith('Hint:')) {
+                    existingHint.innerHTML = `Hint: The word looks like: ${hintWord}`;
+                } else {
+                    feedback.appendChild(document.createElement('br'));
+                    feedback.appendChild(hintMessage);
+                }
+                
+                // Penalty for requesting a hint
+                guessCount++;
+                guessCountDisplay.textContent = guessCount;
+                showToast('Hint provided! +1 to your guess count', 'info');
+            }
+        }
+
+        // Show toast notification
+        function showToast(message, type = 'success') {
+            // Set color based on type
+            switch(type) {
+                case 'warning':
+                    toast.style.backgroundColor = '#f39c12';
+                    break;
+                case 'error':
+                    toast.style.backgroundColor = '#e74c3c';
+                    break;
+                case 'info':
+                    toast.style.backgroundColor = '#3498db';
+                    break;
+                default:
+                    toast.style.backgroundColor = '#2ecc71';
+            }
+            
+            toast.textContent = message;
+            toast.className = "toast show";
+            
+            // Hide toast after 3 seconds
+            setTimeout(() => {
+                toast.className = toast.className.replace("show", "");
+            }, 3000);
+        }
+
+        // Event listeners
+        guessBtn.addEventListener('click', processGuess);
+        guessInput.addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                processGuess();
+            }
+        });
+        
+        newGameBtn.addEventListener('click', function() {
+            initGame();
+            guessInput.disabled = false;
+            guessBtn.disabled = false;
+            hintBtn.disabled = false;
+            guessInput.focus();
+        });
+        
+        hintBtn.addEventListener('click', function() {
+            giveHint();
+        });
+
+        // Initialize the game on page load
+        window.addEventListener('load', initGame);
+    </script>
 </body>
 </html>
